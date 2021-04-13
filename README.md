@@ -74,7 +74,7 @@ Simulador para o curso de Elementos de Sistemas Computacionais (*Elements of Com
         Mux16.test_set([
             [0]*16 + [1]*16 + [0], [0]*16 + [1]*16 + [1], 
             [1]*16 + [0]*16 + [0], [1]*16 + [0]*16 + [1]
-        ], label_order=['sel'] + lbs('a', 16) + lbs('b', 16))
+        ], label_display_order=['sel'] + lbs('a', 16) + lbs('b', 16))
 
     Resultado (`XXXX` é o identificador do componente):
     
