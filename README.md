@@ -34,7 +34,7 @@ Simulador para o curso de Elementos de Sistemas Computacionais (*Elements of Com
     ## assuming Mux circuit is available:
     
     Mux16 = Circuit('Mux16', lbs('a', 16) + lbs('b', 16) + ['sel'], lbs('out', 16))
-    Mux16.add_components((Mux, 16))
+    Mux16.add_components((Library.Load('Mux'), 16))
     for i in range(16):
         Mux16.set_as_input(i, 'a', f'a{i}')
         Mux16.set_as_input(i, 'b', f'b{i}')
