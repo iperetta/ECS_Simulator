@@ -1,2 +1,4 @@
 tempCodeRunnerFile.py
-__pycache__/ecs_simulator.cpython-37.pyc
+__pycache__/*
+lib/*
+!lib/.gitkeep
