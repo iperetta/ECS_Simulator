@@ -319,8 +319,8 @@ class Gate(Library):
         print('-' + '-'*len(labels))
         print(labels)
         print('-' + '-'*len(labels))
-    def test_all(self, label_order=None):
-        input_labels = self.inputs.labels if label_order is None else label_order
+    def test_all(self, label_display_order=None):
+        input_labels = self.inputs.labels if label_display_order is None else label_display_order
         self._test_header(input_labels)
         dimension = len(input_labels)
         min_count, max_count = 0, 1
