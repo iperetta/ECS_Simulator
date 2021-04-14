@@ -35,10 +35,7 @@ class Library:
             filename += '.sim'
         with open(Library.dirpath / filename, 'rb') as f:
             aux = pickle.load(f)
-        # if not filename in ['VCC.sim', 'GND.sim']:
         return aux.copy()
-        # else:
-        #     return aux
     def __init__(self, name):
         self.name = name
         self.id = uuid.uuid4()
@@ -82,21 +79,6 @@ class Wire(Library):
         return Wire(init=self.next, changeable=self.changeable, name=self.name)
     def __repr__(self):
         return super().__repr__() + f"[{'H' if self.next else ('?' if self.next is None else 'L')}]"
-
-
-# if os.path.isfile(Library.dirpath / 'VCC.sim'): 
-#     VCC = Library.load('VCC.sim')
-#     print(f'{VCC} loaded...')
-# else:
-#     VCC = Wire(1, changeable=False, name='VCC')
-#     VCC.save()
-
-# if os.path.isfile(Library.dirpath / 'GND.sim'): 
-#     GND = Library.load('GND.sim')
-#     print(f'{GND} loaded...')
-# else:
-#     GND = Wire(0, changeable=False, name='GND')
-#     GND.save()
 
 
 class Bus(Library):
