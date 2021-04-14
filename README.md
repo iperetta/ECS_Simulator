@@ -7,6 +7,10 @@ Simulador para o curso de Elementos de Sistemas Computacionais (*Elements of Com
 
         from ecs_simulator import *
 
+- Para registrar a autoria dos seus componentes (única vez no início do seu script):
+
+        Library.author("seu nome aqui")
+        
 - Para construir uma porta lógica a partir de transistores:
 
         Nand = Gate('Nand', 2, ['a', 'b'], 'out') # 2 transistors
