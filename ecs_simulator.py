@@ -42,6 +42,7 @@ class Library:
     def __init__(self, name):
         self.name = name
         self.id = uuid.uuid4()
+        self.created_by = Library.cc_by
     def error(self, msg):
         raise Exception(f"{self}: {msg}")
     def save(self, filename=None):

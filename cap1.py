@@ -9,8 +9,8 @@ Not.set_as_input(0, 'B', 'in')
 Not.set_as_output(0, 'C', 'out')
 Not.save()
 
-Not2 = Library.load('Not')
-Not2.test_all()
+Not_b = Library.load('Not')
+Not_b.test_all()
 
 And = Gate('And', 2, ['a', 'b'], ['out'])
 And.set_as_vcc(0, 'C')
