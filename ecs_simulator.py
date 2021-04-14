@@ -3,7 +3,6 @@ import pickle
 import os
 from pathlib import Path
 
-
 def lbs(prefix, length):
     """
     prefix is any word you want to start a reversed enumerated sequence of labels:
@@ -36,7 +35,10 @@ class Library:
             filename += '.sim'
         with open(Library.dirpath / filename, 'rb') as f:
             aux = pickle.load(f)
+        # if not filename in ['VCC.sim', 'GND.sim']:
         return aux.copy()
+        # else:
+        #     return aux
     def __init__(self, name):
         self.name = name
         self.id = uuid.uuid4()
@@ -49,6 +51,7 @@ class Library:
             pickle.dump(self, f)
     def __repr__(self):
         return f"{self.name}_{str(self.id)[-4:].upper()}"
+
 
 
 if not os.path.isdir(Library.dirpath):
@@ -80,17 +83,19 @@ class Wire(Library):
         return super().__repr__() + f"[{'H' if self.next else ('?' if self.next is None else 'L')}]"
 
 
-if os.path.isfile(Library.dirpath / 'VCC.sim'): 
-    VCC = Library.load('VCC.sim')
-else:
-    VCC = Wire(1, changeable=False, name='VCC')
-    VCC.save()
+# if os.path.isfile(Library.dirpath / 'VCC.sim'): 
+#     VCC = Library.load('VCC.sim')
+#     print(f'{VCC} loaded...')
+# else:
+#     VCC = Wire(1, changeable=False, name='VCC')
+#     VCC.save()
 
-if os.path.isfile(Library.dirpath / 'GND.sim'): 
-    GND = Library.load('GND.sim')
-else:
-    GND = Wire(0, changeable=False, name='GND')
-    GND.save()
+# if os.path.isfile(Library.dirpath / 'GND.sim'): 
+#     GND = Library.load('GND.sim')
+#     print(f'{GND} loaded...')
+# else:
+#     GND = Wire(0, changeable=False, name='GND')
+#     GND.save()
 
 
 class Bus(Library):
@@ -179,12 +184,15 @@ class Gate(Library):
             input_labels = [input_labels]
         if type(output_labels) == str:
             output_labels = [output_labels]
+        self.vcc = Wire(1, changeable=False, name='VCC')
+        self.gnd =Wire(0, changeable=False, name='GND')
         self.inputs = Bus(len(input_labels))
         self.inputs.set_labels(input_labels)
         self.outputs = Bus(len(output_labels))
         self.outputs.set_labels(output_labels)
         self.components = list(Transistor() for _ in range(nrtransistors))
         self.connections = dict((w, set()) for w in self.get_wires())
+        self.connections.update({self.vcc: set(), self.gnd: set()})
         self.inverted_outputs = dict((self.outputs[l], False) for l in self.outputs.labels) \
             if nrtransistors > 0 else None
         self.visited = None
@@ -194,7 +202,7 @@ class Gate(Library):
         if type(index) == int or index in self.outputs.labels:
            return self.outputs[index]
     def get_wires(self):
-        wires = [VCC, GND]
+        wires = [self.vcc, self.gnd]
         wires += list(self.inputs[l] for l in self.inputs.labels)
         wires += list(self.outputs[l] for l in self.outputs.labels)
         for q in self.components:
@@ -206,7 +214,8 @@ class Gate(Library):
         acopy = Gate(self.name, self.nrtransistors(), self.inputs.labels, self.outputs.labels)
         wires_dict = dict((ws, wc) for ws, wc in zip(self.get_wires(), acopy.get_wires()))
         for k, v in self.connections.items():
-            acopy.connections[wires_dict[k]] = set(wires_dict[w] for w in v)
+            aux = set(wires_dict[w] for w in v)
+            acopy.connections[wires_dict[k]] = aux
         for k, v in self.inverted_outputs.items():
             acopy.inverted_outputs[wires_dict[k]] = v
         return acopy
@@ -232,9 +241,9 @@ class Gate(Library):
         self.connect_nodes(self.components[idxQ].ports[portQ], self.outputs[label])
         self.inverted_outputs[self.outputs[label]] = portQ == 'C'
     def set_as_vcc(self, idxQ, portQ):
-        self.connect_nodes(self.components[idxQ].ports[portQ], VCC)
+        self.connect_nodes(self.components[idxQ].ports[portQ], self.vcc)
     def set_as_gnd(self, idxQ, portQ):
-        self.connect_nodes(self.components[idxQ].ports[portQ], GND)
+        self.connect_nodes(self.components[idxQ].ports[portQ], self.gnd)
     def reset(self):
         for w in self.get_wires():
             w.disconnect()
@@ -249,7 +258,7 @@ class Gate(Library):
             for k in self.visited.keys():
                 self.visited[k] = False
     def _is_short_circuit(self, origin):
-        if origin == GND:
+        if origin == self.gnd:
             return True
         self.visited[origin] = True
         for w in self.connections[origin]:
@@ -259,7 +268,7 @@ class Gate(Library):
         return False
     def is_short_circuit(self):
         self._support_to_navigation()
-        return self._is_short_circuit(VCC)
+        return self._is_short_circuit(self.vcc)
     def _propagate(self, origin):
         self.visited[origin] = True
         for w in self.connections[origin]:
@@ -300,7 +309,7 @@ class Gate(Library):
         return f"{self} : I/O {self.inputs.nrbits}⨉{self.outputs.nrbits} [#Q {self.nrtransistors()}]"
     def info(self):
         from pprint import pprint
-        print(self, ': vcc', VCC, '; gnd', GND)
+        print(self, ': vcc', self.vcc, '; gnd', self.gnd)
         for l in self.inputs.labels:
             print(l, self.inputs[l], end='; ')
         print('')
@@ -347,15 +356,6 @@ class Circuit(Gate):
         self.new_circuitry_entry(self)
     def new_circuitry_entry(self, key):
         self.circuitry[key] = { 'level': -1, 'same': [], 'children': [] }
-    def get_wires(self):
-        wires = list(self.inputs[l] for l in self.inputs.labels)
-        wires += list(self.outputs[l] for l in self.outputs.labels)
-        for q in self.components:
-            wires += q.get_wires()
-            wires.remove(VCC)
-            wires.remove(GND)
-        wires += [VCC, GND]
-        return wires
     def copy(self):
         acopy = Circuit(self.name, self.inputs.labels, self.outputs.labels)
         for cp in self.components:
@@ -477,3 +477,6 @@ class Circuit(Gate):
             self.run()
             print(' ' + self.inputs.str(', ', order=input_labels) + ' | ' + self.outputs.str(', '))
         print('')
+
+if __name__ == "__main__":
+    pass
