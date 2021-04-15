@@ -305,15 +305,30 @@ class Gate(Library):
             else:
                 print(c, list((l, c.inputs[l]) for l in c.inputs.labels), list((l, c.outputs[l]) for l in c.outputs.labels))
         pprint(self.connections)
-    def _test_header(self, input_labels):
+    def _test_header(self, input_labels, compact):
+        def max_len(list_str):
+            return max(list(len(x) for x in list_str))
+        def w1pl(input_labels, output_labels, max_char=None):
+            if max_char is None:
+                max_char = max_len(input_labels + output_labels)
+            letters = ''
+            for i in range(max_char):
+                letters += ' ' + ' '.join(list(c[i]  if i < len(c) else ' ' for c in input_labels)) + ' | '
+                letters += ' '.join(list(c[i]  if i < len(c) else ' ' for c in output_labels)) + '\n'
+            return letters[:-1]
         print('\n' + self.header())
-        labels = ' ' + ', '.join(input_labels) + ' | ' + ', '.join(self.outputs.labels)
-        print('-' + '-'*len(labels))
+        if compact:
+            labels = w1pl(input_labels, self.outputs.labels)
+            len_labels = len(labels.split('\n')[0])
+        else:
+            labels = ' ' + ', '.join(input_labels) + ' | ' + ', '.join(self.outputs.labels)
+            len_labels = len(labels)
+        print('-' + '-'*len_labels)
         print(labels)
-        print('-' + '-'*len(labels))
-    def test_all(self, label_display_order=None):
+        print('-' + '-'*len_labels)
+    def test_all(self, label_display_order=None, compact=False):
         input_labels = self.inputs.labels if label_display_order is None else label_display_order
-        self._test_header(input_labels)
+        self._test_header(input_labels, compact)
         dimension = len(input_labels)
         min_count, max_count = 0, 1
         counter = [min_count]*dimension
@@ -321,7 +336,10 @@ class Gate(Library):
             inputs = dict((k, v) for k, v in zip(input_labels, reversed(counter)))
             self.set_input_values(inputs)
             self.run()
-            print(' ' + self.inputs.str(', ', order=input_labels) + ' | ' + self.outputs.str(', '))
+            if compact:
+                print(' ' + self.inputs.str(' ', order=input_labels) + ' | ' + self.outputs.str(', '))
+            else:
+                print(' ' + self.inputs.str(', ', order=input_labels) + ' | ' + self.outputs.str(', '))
             counter[0] += 1
             for i in range(len(counter)-1):
                 if counter[i] > max_count:
@@ -448,17 +466,20 @@ class Circuit(Gate):
             c.run()
             for lbl in c.outputs.labels:
                 self.propagate(c.outputs[lbl])
-    def test_set(self, cases, label_display_order=None):
+    def test_set(self, cases, label_display_order=None, compact=False):
         """label_order doesn't change the input order for case tests, only visualization"""
         input_labels = self.inputs.labels if label_display_order is None else label_display_order
         indexes = list(self.inputs.labels.index(l) for l in input_labels)
-        self._test_header(input_labels)
+        self._test_header(input_labels, compact)
         for case in cases:
             if len(case) != self.inputs.nrbits: self.error("case with mismatch number of entries.")
             inputs = dict((k, v) for k, v in zip(input_labels, list(case[i] for i in indexes)))
             self.set_input_values(inputs)
             self.run()
-            print(' ' + self.inputs.str(', ', order=input_labels) + ' | ' + self.outputs.str(', '))
+            if compact:
+                print(' ' + self.inputs.str(' ', order=input_labels) + ' | ' + self.outputs.str(' '))
+            else:
+                print(' ' + self.inputs.str(', ', order=input_labels) + ' | ' + self.outputs.str(' '))
         print('')
 
 if __name__ == "__main__":
