@@ -114,12 +114,16 @@ Simulador para o curso de Elementos de Sistemas Computacionais (*Elements of Com
             Mux4way16.set_as_input(i, 'sel1', 'sel1')
             Mux4way16.set_as_output(i, 'out', f'out{i}')
         Mux4way16.save()    
-        Mux4way16.test_set([
-            [1]*16 + [0]*16 + [0]*16 + [0]*16 + [0, 0],
-            [0]*16 + [1]*16 + [0]*16 + [0]*16 + [0, 1],
-            [0]*16 + [0]*16 + [1]*16 + [0]*16 + [1, 0],
-            [0]*16 + [0]*16 + [0]*16 + [1]*16 + [1, 1],
-        ], label_display_order=lbs('sel', 2) + reduce(lambda a, b: a+b, list(lbs(x, 16) for x in lbs('@', 4))), compact=True)
+        Mux4way16.test_set(
+            [
+                [1]*16 + [0]*16 + [0]*16 + [0]*16 + [0, 0],
+                [0]*16 + [1]*16 + [0]*16 + [0]*16 + [0, 1],
+                [0]*16 + [0]*16 + [1]*16 + [0]*16 + [1, 0],
+                [0]*16 + [0]*16 + [0]*16 + [1]*16 + [1, 1],
+            ], label_display_order=lbs('sel', 2) + \
+            reduce(lambda a, b: a+b, list(lbs(x, 16) for x in lbs('@', 4))), 
+            compact=True
+        )
 
     Resultado (`XXXX` é o identificador da instância do componente):
     
