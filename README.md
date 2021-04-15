@@ -105,7 +105,10 @@ Simulador para o curso de Elementos de Sistemas Computacionais (*Elements of Com
 
         from functools import reduce
         # ...
-        Mux4way16 = Circuit('Mux4way16', reduce(lambda a, b: a+b, list(lbs(x, 16) for x in lbs('@', 4))) + lbs('sel', 2), lbs('out', 16))
+        Mux4way16 = Circuit('Mux4way16', 
+            reduce(lambda a, b: a+b, list(lbs(x, 16) for x in lbs('@', 4))) + lbs('sel', 2), 
+            lbs('out', 16)
+        )
         Mux4way16.add_components((Mux4way, 16))
         for i in range(16):
             for x in lbs('@', 4):
