@@ -129,7 +129,7 @@ Simulador para o curso de Elementos de Sistemas Computacionais (*Elements of Com
             compact=True
         )
 
-    Resultado (`XXXX` é o identificador da instância do componente):
+    Resultado (`XXXX` é o identificador da instância do componente) com parâmetro `compact=True` nos testes:
     
         Mux4way16_XXXX : I/O 66⨉16 [#Q 336]
         -----------------------------------------------------------------------------------------------------------------------------------------------------------------------
