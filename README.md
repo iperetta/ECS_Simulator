@@ -101,7 +101,7 @@ Simulador para o curso de Elementos de Sistemas Computacionais (*Elements of Com
         if you want to use '@' as a prefix, use '\@':
             ex. lbs('\@', 4) => ['@3', '@2', '@1', '@0']
 
-- Uso de funções do Python pode auxiliar na definição de *labels* para entradas e saídas:
+- Uso de funções do Python pode auxiliar na definição de *labels* para entradas e saídas, além de facilitar a descrição de entradas e saídas com laços:
 
         from functools import reduce
         # ...
