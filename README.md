@@ -120,8 +120,9 @@ Simulador para o curso de Elementos de Sistemas Computacionais (*Elements of Com
                 [0]*16 + [1]*16 + [0]*16 + [0]*16 + [0, 1],
                 [0]*16 + [0]*16 + [1]*16 + [0]*16 + [1, 0],
                 [0]*16 + [0]*16 + [0]*16 + [1]*16 + [1, 1],
-            ], label_display_order=lbs('sel', 2) + \
-            reduce(lambda a, b: a+b, list(lbs(x, 16) for x in lbs('@', 4))), 
+            ], 
+            label_display_order=lbs('sel', 2) + \
+                reduce(lambda a, b: a+b, list(lbs(x, 16) for x in lbs('@', 4))), 
             compact=True
         )
 
