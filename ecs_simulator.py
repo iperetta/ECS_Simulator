@@ -1,7 +1,9 @@
-import uuid
 import pickle
 import os
+import uuid
+# from functools import reduce
 from pathlib import Path
+import time
 
 def lbs(prefix, length):
     """
@@ -88,7 +90,7 @@ class Bus(Library):
         self.binvec = list(Wire() for _ in range(self.nrbits))
         self.labels = list(reversed(range(self.nrbits))) #@verify
     def __getitem__(self, index):
-        return self.binvec[index] if type(index) == int else self.binvec[self.labels.index(index)]
+        return self.binvec[self.labels.index(index)] #@verify
     def copy(self):
         aux = Bus(self.nrbits)
         aux.set_labels(*self.labels)
@@ -111,11 +113,25 @@ class Bus(Library):
         else:
             binvec = binvec[lb - nrbits:]
         return binvec
-    def _convert_to_decimal(self):
+    def bin(self, decimal, nrbits):
+        if decimal < 0:
+            decimal = 2**nrbits + decimal
+            if decimal < 2**(nrbits-1):
+                decimal += 2**(nrbits-1)
+        return self._convert_to_binary(decimal, nrbits)
+    def _convert_to_decimal(self, first=0, last=None):
+        if last is None: last = len(self.binvec)
+        else: last += 1
         decimal = 0
-        for n, b in enumerate(self.binvec): #@verify
+        for n, b in enumerate(reversed(self.binvec[first:last])):
             if b.next:
                 decimal += 2**n
+        return decimal
+    def dec(self, first=0, last=None, signed=True):
+        if last is None: last = len(self.binvec)-1
+        decimal = self._convert_to_decimal(first, last)
+        if self.binvec[first].next and signed: # neg
+            decimal = decimal - 2**(last-first+1)
         return decimal
     def set_as(self, data):
         if type(data) == int:
@@ -291,21 +307,9 @@ class Gate(Library):
     def header(self):
         return f"{self} : I/O {self.inputs.nrbits}⨉{self.outputs.nrbits} [#Q {self.nrtransistors()}]"
     def info(self):
-        from pprint import pprint
-        print(self, ': vcc', self.vcc, '; gnd', self.gnd)
-        for l in self.inputs.labels:
-            print(l, self.inputs[l], end='; ')
-        print('')
-        for l in self.outputs.labels:
-            print(l, self.outputs[l], end='; ')
-        print('')
-        for c in self.components:
-            if type(c) == Transistor:
-                print(c, c.ports)
-            else:
-                print(c, list((l, c.inputs[l]) for l in c.inputs.labels), list((l, c.outputs[l]) for l in c.outputs.labels))
-        pprint(self.connections)
-    def _test_header(self, input_labels, compact):
+        print('Inputs (in order) :', self.inputs.labels)
+        print('Outputs (in order):', self.outputs.labels)
+    def _test_header(self, input_labels, output_labels, compact):
         def max_len(list_str):
             return max(list(len(x) for x in list_str))
         def w1pl(input_labels, output_labels, max_char=None):
@@ -318,28 +322,49 @@ class Gate(Library):
             return letters[:-1]
         print('\n' + self.header())
         if compact:
-            labels = w1pl(input_labels, self.outputs.labels)
+            labels = w1pl(input_labels, output_labels)
             len_labels = len(labels.split('\n')[0])
         else:
-            labels = ' ' + ', '.join(input_labels) + ' | ' + ', '.join(self.outputs.labels)
+            labels = ' ' + ', '.join(input_labels) + ' | ' + ', '.join(output_labels)
             len_labels = len(labels)
         print('-' + '-'*len_labels)
         print(labels)
         print('-' + '-'*len_labels)
+        return len_labels
+    def _labels_order(self, label_display_order):
+        if label_display_order is None:
+            input_labels = self.inputs.labels
+            output_labels = self.outputs.labels
+        elif type(label_display_order) == tuple:
+            input_labels = label_display_order[0] if len(label_display_order[0]) > 0 else self.inputs.labels
+            output_labels = label_display_order[1] if len(label_display_order[1]) > 0 else self.outputs.labels
+        else:
+            input_labels = label_display_order
+            output_labels = self.outputs.labels
+        return input_labels, output_labels
     def test_all(self, label_display_order=None, compact=False):
-        input_labels = self.inputs.labels if label_display_order is None else label_display_order
-        self._test_header(input_labels, compact)
+        """
+        'label_display_order' changes only visualization, not original label ordering;
+        in case of only reordering input labels, 'label_display_order' is a list with all labels in desired order;
+        in case of reordering both input and output labels, 'label_display_order' is a tuple with two lists, each with respective labels in desired order.
+        'compact=True' will print labels each in a single column.
+        """
+        input_labels, output_labels = self._labels_order(label_display_order)
+        len_labels = self._test_header(input_labels, output_labels, compact)
         dimension = len(input_labels)
         min_count, max_count = 0, 1
         counter = [min_count]*dimension
+        elapsed = list()
         while True:
             inputs = dict((k, v) for k, v in zip(input_labels, reversed(counter)))
+            t = time.time()
             self.set_input_values(inputs)
             self.run()
+            elapsed.append(time.time() - t)
             if compact:
-                print(' ' + self.inputs.str(' ', order=input_labels) + ' | ' + self.outputs.str(', '))
+                print(' ' + self.inputs.str(' ', order=input_labels) + ' | ' + self.outputs.str(' ', order=output_labels))
             else:
-                print(' ' + self.inputs.str(', ', order=input_labels) + ' | ' + self.outputs.str(', '))
+                print(' ' + self.inputs.str(', ', order=input_labels) + ' | ' + self.outputs.str(', ', order=output_labels))
             counter[0] += 1
             for i in range(len(counter)-1):
                 if counter[i] > max_count:
@@ -347,7 +372,33 @@ class Gate(Library):
                     counter[i+1] += 1
             if counter[-1] > max_count:
                 break
-        print('')
+        print('-'*len_labels)
+        print(f'Mean elapsed time: {sum(elapsed)/len(elapsed)*1000:.2f} ms\n')
+    def test_set(self, cases, label_display_order=None, compact=False):
+        """
+        'cases' MUST respect the original label ordering.
+        'label_display_order' doesn't change the input order for case tests, only their visualization;
+        in case of only reordering input labels, 'label_display_order' is a list with all labels in desired order;
+        in case of reordering both input and output labels, 'label_display_order' is a tuple with two lists, each with respective labels in desired order.
+        'compact=True' will print labels each in a single column.
+        """
+        input_labels, output_labels = self._labels_order(label_display_order)
+        indexes = list(self.inputs.labels.index(l) for l in input_labels)
+        len_labels = self._test_header(input_labels, output_labels, compact)
+        elapsed = list()
+        for case in cases:
+            if len(case) != self.inputs.nrbits: self.error("case with mismatch number of entries.")
+            inputs = dict((k, v) for k, v in zip(input_labels, list(case[i] for i in indexes)))
+            t = time.time()
+            self.set_input_values(inputs)
+            self.run()
+            elapsed.append(time.time() - t)
+            if compact:
+                print(' ' + self.inputs.str(' ', order=input_labels) + ' | ' + self.outputs.str(' ', order=output_labels))
+            else:
+                print(' ' + self.inputs.str(', ', order=input_labels) + ' | ' + self.outputs.str(', ', order=output_labels))
+        print('-'*len_labels)
+        print(f'Mean elapsed time: {sum(elapsed)/len(elapsed)*1000:.2f} ms\n')
 
 
 class Circuit(Gate):
@@ -420,10 +471,11 @@ class Circuit(Gate):
         for c in self.circuitry[key]['same']:
             if c != self:
                 if self.circuitry[c]['level'] < level:
-                    self.circuitry[c]['level'] = level
+                    self.prepare_circuitry_levels(key=c, level=level)
         for c in self.circuitry[key]['children']:
             if c != self:
-                self.prepare_circuitry_levels(key=c, level=level+1)
+                if self.circuitry[c]['level'] <= level:
+                    self.prepare_circuitry_levels(key=c, level=level+1)
     def set_components_in_order_to_run(self):
         for k, v in self.circuitry.items():
             for c in v['children']:
@@ -466,21 +518,64 @@ class Circuit(Gate):
             c.run()
             for lbl in c.outputs.labels:
                 self.propagate(c.outputs[lbl])
-    def test_set(self, cases, label_display_order=None, compact=False):
-        """label_order doesn't change the input order for case tests, only visualization"""
-        input_labels = self.inputs.labels if label_display_order is None else label_display_order
-        indexes = list(self.inputs.labels.index(l) for l in input_labels)
-        self._test_header(input_labels, compact)
-        for case in cases:
-            if len(case) != self.inputs.nrbits: self.error("case with mismatch number of entries.")
-            inputs = dict((k, v) for k, v in zip(input_labels, list(case[i] for i in indexes)))
-            self.set_input_values(inputs)
-            self.run()
-            if compact:
-                print(' ' + self.inputs.str(' ', order=input_labels) + ' | ' + self.outputs.str(' '))
-            else:
-                print(' ' + self.inputs.str(', ', order=input_labels) + ' | ' + self.outputs.str(' '))
-        print('')
-
-if __name__ == "__main__":
-    pass
+    def test_arithm(self, compact=True, label_display_order=None, msg = '', unsigned=[], **kwargs):
+        def get_prefix(label):
+            for i in range(len(label)):
+                if label[i].isnumeric():
+                    return label[0:i]
+            return '' if label.isnumeric() else label
+        input_labels, output_labels = self._labels_order(label_display_order)
+        input_prefix = list()
+        for lbl in input_labels:
+            aux = get_prefix(lbl)
+            if not aux in input_prefix: input_prefix.append(aux)
+        inputs_dict = dict()
+        for k, v in kwargs.items():
+            if k in input_prefix:
+                inputs_dict[k] = dict()
+                aux = list(l for l in input_labels if get_prefix(l) == k)
+                inputs_dict[k]['labels'] = aux
+                inputs_dict[k]['value'] = v
+                inputs_dict[k]['nrbits'] = len(aux)
+                inputs_dict[k]['idbit'] = self.inputs.binvec.index(self.inputs[aux[0]])
+                inputs_dict[k]['signed'] = not k in unsigned
+        user_input = ' received inputs (decimal): ' + ', '.join(list(f"{p}={inputs_dict[p]['value']}" for p in input_prefix))
+        output_prefix = list()
+        for lbl in output_labels:
+            aux = get_prefix(lbl)
+            if not aux in output_prefix: output_prefix.append(aux)
+        outputs_dict = dict()
+        for p in output_prefix:
+            outputs_dict[p] = dict()
+            aux = list(l for l in output_labels if get_prefix(l) == p)
+            outputs_dict[p]['labels'] = aux
+            outputs_dict[p]['value'] = None
+            outputs_dict[p]['nrbits'] = len(aux)
+            outputs_dict[p]['idbit'] = self.outputs.binvec.index(self.outputs[aux[0]])
+            outputs_dict[p]['signed'] = not p in unsigned
+        len_labels = self._test_header(input_labels, output_labels, compact)
+        inputs = dict()
+        for k in inputs_dict.keys():
+            for l, i in zip(inputs_dict[k]['labels'], self.inputs.bin(inputs_dict[k]['value'], inputs_dict[k]['nrbits'])):
+                inputs[l] = i
+        t = time.time()
+        self.set_input_values(inputs)
+        self.run()
+        elapsed = time.time() - t
+        for p in input_prefix:
+            idx = inputs_dict[p]['idbit']
+            inputs_dict[p]['value'] = self.inputs.dec(idx, idx + inputs_dict[p]['nrbits'] - 1, inputs_dict[p]['signed'])
+        for p in output_prefix:
+            idx = outputs_dict[p]['idbit']
+            outputs_dict[p]['value'] = self.outputs.dec(idx, idx + outputs_dict[p]['nrbits'] - 1, outputs_dict[p]['signed'])
+        if compact:
+            print(' ' + self.inputs.str(' ', order=input_labels) + ' | ' + self.outputs.str(' ', order=output_labels))
+        else:
+            print(' ' + self.inputs.str(', ', order=input_labels) + ' | ' + self.outputs.str(', ', order=output_labels))
+        print('-'*len_labels)
+        print(user_input)
+        print(f" operation {'' if msg == '' else '['+msg.upper()+']'} applied to: ",
+            ', '.join(list(f"{p}={inputs_dict[p]['value']}" for p in input_prefix)), '| result: ', 
+            ', '.join(list(f"{p}={outputs_dict[p]['value']}" for p in output_prefix)))
+        print('-'*len_labels)
+        print(f'Elapsed time: {elapsed*1000:.2f} ms\n')

@@ -35,6 +35,7 @@ Simulador para o curso de Elementos de Sistemas Computacionais (*Elements of Com
          0, 1 | 1
          1, 0 | 1
          1, 1 | 0
+        ------------
     
 - Para construir um circuito lógico a partir de portas lógicas:
 
@@ -62,6 +63,7 @@ Simulador para o curso de Elementos de Sistemas Computacionais (*Elements of Com
          0, 1 | 1
          1, 0 | 1
          1, 1 | 0
+        ------------
          
 - Para construir um circuito lógico a partir de outros circuitos com auxílio da função `lbs` criada para isso:
 
@@ -90,6 +92,7 @@ Simulador para o curso de Elementos de Sistemas Computacionais (*Elements of Com
          1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 | 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
          0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 | 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
          1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 | 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
          
     A função `lbs` é definida por (veja no código para maiores detalhes):
 
@@ -105,11 +108,12 @@ Simulador para o curso de Elementos de Sistemas Computacionais (*Elements of Com
 
         from functools import reduce
         # ...
+        ## assuming Mux4way.sim circuit is available in /lib:
         Mux4way16 = Circuit('Mux4way16', 
             reduce(lambda a, b: a+b, list(lbs(x, 16) for x in lbs('@', 4))) + lbs('sel', 2), 
             lbs('out', 16)
         )
-        Mux4way16.add_components((Mux4way, 16))
+        Mux4way16.add_components((Library.load('Mux4way'), 16))
         for i in range(16):
             for x in lbs('@', 4):
                 Mux4way16.set_as_input(i, x, f'{x}{i}')
@@ -143,3 +147,81 @@ Simulador para o curso de Elementos de Sistemas Computacionais (*Elements of Com
         0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
         1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
         1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 | 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
+        -----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+- Uso de testes aritméticos:
+
+        ## assuming Alu.sim circuit is available in /lib:
+        Alu = Library.load('Alu') 
+        # definition: 
+        #  Alu = Circuit('Alu', 
+        #    lbs('x', 16) + lbs('y', 16) + ['zx', 'nx', 'zy', 'ny', 'f', 'no'], 
+        #    lbs('out', 16) + ['zr', 'ng']
+        #  )
+        Alu.test_arithm(msg="x+y", 
+            x=10, y=12, zx=0, nx=0, zy=0, ny=0, f=1, no=0, 
+            label_display_order=(
+                ['zx', 'nx', 'zy', 'ny', 'f', 'no'] + lbs('x', 16) + lbs('y', 16), 
+                ['zr', 'ng'] + lbs('out', 16)
+            ), 
+            unsigned=['zx', 'nx', 'zy', 'ny', 'f', 'no', 'zr', 'ng'])
+        Alu.test_arithm(msg="x-y", 
+            x=10, y=12, zx=0, nx=1, zy=0, ny=0, f=1, no=1, 
+            label_display_order=(
+                ['zx', 'nx', 'zy', 'ny', 'f', 'no'] + lbs('x', 16) + lbs('y', 16), 
+                ['zr', 'ng'] + lbs('out', 16)
+            ), 
+            unsigned=['zx', 'nx', 'zy', 'ny', 'f', 'no', 'zr', 'ng'])
+        Alu.test_arithm(msg="x&y", 
+            x=10, y=12, zx=0, nx=0, zy=0, ny=0, f=0, no=0, 
+            label_display_order=(
+                ['zx', 'nx', 'zy', 'ny', 'f', 'no'] + lbs('x', 16) + lbs('y', 16), 
+                ['zr', 'ng']+lbs('out', 16)
+            ), 
+            unsigned=['zx', 'nx', 'zy', 'ny', 'f', 'no', 'zr', 'ng'])
+
+    Resultado (`XXXX` é o identificador da instância do componente); note que parâmetro `compact=True` é o padrão para os testes:
+
+        Alu_XXXX : I/O 38⨉18 [#Q 1046]
+        -------------------------------------------------------------------------------------------------------------------
+        z n z n f n x x x x x x x x x x x x x x x x y y y y y y y y y y y y y y y y | z n o o o o o o o o o o o o o o o o
+        x x y y   o 1 1 1 1 1 1 9 8 7 6 5 4 3 2 1 0 1 1 1 1 1 1 9 8 7 6 5 4 3 2 1 0 | r g u u u u u u u u u u u u u u u u
+                    5 4 3 2 1 0                     5 4 3 2 1 0                     |     t t t t t t t t t t t t t t t t
+                                                                                    |     1 1 1 1 1 1 9 8 7 6 5 4 3 2 1 0
+                                                                                    |     5 4 3 2 1 0                    
+        -------------------------------------------------------------------------------------------------------------------
+        0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 1 1 0
+        ------------------------------------------------------------------------------------------------------------------
+        received inputs (decimal): zx=0, nx=0, zy=0, ny=0, f=1, no=0, x=10, y=12
+        operation [X+Y] applied to:  zx=0, nx=0, zy=0, ny=0, f=1, no=0, x=10, y=12 | result:  zr=0, ng=0, out=22
+        ------------------------------------------------------------------------------------------------------------------
+        
+        Alu_XXXX : I/O 38⨉18 [#Q 1046]
+        -------------------------------------------------------------------------------------------------------------------
+        z n z n f n x x x x x x x x x x x x x x x x y y y y y y y y y y y y y y y y | z n o o o o o o o o o o o o o o o o
+        x x y y   o 1 1 1 1 1 1 9 8 7 6 5 4 3 2 1 0 1 1 1 1 1 1 9 8 7 6 5 4 3 2 1 0 | r g u u u u u u u u u u u u u u u u
+                    5 4 3 2 1 0                     5 4 3 2 1 0                     |     t t t t t t t t t t t t t t t t
+                                                                                    |     1 1 1 1 1 1 9 8 7 6 5 4 3 2 1 0
+                                                                                    |     5 4 3 2 1 0                    
+        -------------------------------------------------------------------------------------------------------------------
+        0 1 0 0 1 1 0 0 0 0 0 0 0 0 0 0 0 0 1 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 0 0 | 0 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0
+        ------------------------------------------------------------------------------------------------------------------
+        received inputs (decimal): zx=0, nx=1, zy=0, ny=0, f=1, no=1, x=10, y=12
+        operation [X-Y] applied to:  zx=0, nx=1, zy=0, ny=0, f=1, no=1, x=10, y=12 | result:  zr=0, ng=1, out=-2
+        ------------------------------------------------------------------------------------------------------------------
+
+        Alu_XXXX : I/O 38⨉18 [#Q 1046]
+        -------------------------------------------------------------------------------------------------------------------
+        z n z n f n x x x x x x x x x x x x x x x x y y y y y y y y y y y y y y y y | z n o o o o o o o o o o o o o o o o
+        x x y y   o 1 1 1 1 1 1 9 8 7 6 5 4 3 2 1 0 1 1 1 1 1 1 9 8 7 6 5 4 3 2 1 0 | r g u u u u u u u u u u u u u u u u
+                    5 4 3 2 1 0                     5 4 3 2 1 0                     |     t t t t t t t t t t t t t t t t
+                                                                                    |     1 1 1 1 1 1 9 8 7 6 5 4 3 2 1 0
+                                                                                    |     5 4 3 2 1 0                    
+        -------------------------------------------------------------------------------------------------------------------
+        0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0
+        ------------------------------------------------------------------------------------------------------------------
+        received inputs (decimal): zx=0, nx=0, zy=0, ny=0, f=0, no=0, x=10, y=12
+        operation [X&Y] applied to:  zx=0, nx=0, zy=0, ny=0, f=0, no=0, x=10, y=12 | result:  zr=0, ng=0, out=8
+        ------------------------------------------------------------------------------------------------------------------
+    
+    Note que a Alu implementada possui 1046 transistores.
