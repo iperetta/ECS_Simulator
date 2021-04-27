@@ -195,6 +195,7 @@ class Gate(Library):
         self.inverted_outputs = dict((self.outputs[l], False) for l in self.outputs.labels) \
             if nrtransistors > 0 else None
         self.visited = None
+        self.clock = None
     def __getitem__(self, index):
         if type(index) == int or index in self.inputs.labels:
            return self.inputs[index] 
@@ -217,6 +218,7 @@ class Gate(Library):
             acopy.connections[wires_dict[k]] = aux
         for k, v in self.inverted_outputs.items():
             acopy.inverted_outputs[wires_dict[k]] = v
+        acopy.clock = None
         return acopy
     def connect_nodes_unidirecional(self, wireFrom, wireTo):
         self.connections[wireFrom].add(wireTo)
@@ -243,9 +245,6 @@ class Gate(Library):
         self.connect_nodes(self.components[idxQ].ports[portQ], self.vcc)
     def set_as_gnd(self, idxQ, portQ):
         self.connect_nodes(self.components[idxQ].ports[portQ], self.gnd)
-    def reset(self):
-        for w in self.get_wires():
-            w.disconnect()
     def is_input(self, label):
         return label in self.inputs.labels
     def is_output(self, label):
@@ -284,7 +283,6 @@ class Gate(Library):
                 d[l] = values[i]
             self.set_input_values(d)
         elif type(values) == dict:
-            self.reset()
             for k, v in values.items():
                 if v == 0: self.inputs[k].set_low()
                 else: self.inputs[k].set_high()
@@ -342,7 +340,7 @@ class Gate(Library):
             input_labels = label_display_order
             output_labels = self.outputs.labels
         return input_labels, output_labels
-    def test_all(self, label_display_order=None, compact=False):
+    def test_all(self, label_display_order=None, compact=False, has_clock=False):
         """
         'label_display_order' changes only visualization, not original label ordering;
         in case of only reordering input labels, 'label_display_order' is a list with all labels in desired order;
@@ -359,7 +357,10 @@ class Gate(Library):
             inputs = dict((k, v) for k, v in zip(input_labels, reversed(counter)))
             t = time.time()
             self.set_input_values(inputs)
-            self.run()
+            if not has_clock:
+                self.run()
+            else:
+                self.clock_next()
             elapsed.append(time.time() - t)
             if compact:
                 print(' ' + self.inputs.str(' ', order=input_labels) + ' | ' + self.outputs.str(' ', order=output_labels))
@@ -374,7 +375,7 @@ class Gate(Library):
                 break
         print('-'*len_labels)
         print(f'Mean elapsed time: {sum(elapsed)/len(elapsed)*1000:.2f} ms\n')
-    def test_set(self, cases, label_display_order=None, compact=False):
+    def test_set(self, cases, label_display_order=None, compact=False, has_clock=False):
         """
         'cases' MUST respect the original label ordering.
         'label_display_order' doesn't change the input order for case tests, only their visualization;
@@ -391,7 +392,10 @@ class Gate(Library):
             inputs = dict((k, v) for k, v in zip(input_labels, list(case[i] for i in indexes)))
             t = time.time()
             self.set_input_values(inputs)
-            self.run()
+            if not has_clock:
+                self.run()
+            else:
+                self.clock_next()
             elapsed.append(time.time() - t)
             if compact:
                 print(' ' + self.inputs.str(' ', order=input_labels) + ' | ' + self.outputs.str(' ', order=output_labels))
@@ -415,6 +419,8 @@ class Circuit(Gate):
         wires_dict = dict((ws, wc) for ws, wc in zip(self.get_wires(), acopy.get_wires()))
         for k, v in self.connections.items():
             acopy.connections[wires_dict[k]] = set(wires_dict[w] for w in v)
+        if not self.clock is None:
+            acopy.clock = wires_dict[self.clock]
         comp_dict = dict((cs, cc) for cs, cc in zip(self.components, acopy.components))
         comp_dict.update({self: acopy})
         for k, v in self.circuitry.items():
@@ -507,9 +513,16 @@ class Circuit(Gate):
         wire = self.components[cidx][port]
         wire.set_low()
         wire.changeable = False
-    def reset(self):
-        for w in self.get_wires():
-            w.disconnect()
+    def set_as_clock(self, cidx, port):
+        wire = self.components[cidx].clock if port == 'clock' else self.components[cidx][port]
+        if not wire in self.connections:
+            self.connections[wire] = set()
+        if self.clock is None:
+            self.clock = wire
+        else:
+            self.connect_nodes(self.clock, wire)
+        if not self.components[cidx].clock is None:
+            self.connect_nodes(self.clock, self.components[cidx].clock)
     def run(self):
         for lbl in self.inputs.labels:
             self.propagate(self.inputs[lbl])
@@ -518,7 +531,13 @@ class Circuit(Gate):
             c.run()
             for lbl in c.outputs.labels:
                 self.propagate(c.outputs[lbl])
-    def test_arithm(self, compact=True, label_display_order=None, msg = '', unsigned=[], **kwargs):
+    def clock_next(self):
+        self.clock.set_high()
+        self.propagate(self.clock)
+        self.run()
+        self.clock.set_low()
+        self.propagate(self.clock)
+    def test_arithm(self, compact=True, label_display_order=None, msg = '', unsigned=[], has_clock=False, **kwargs):
         def get_prefix(label):
             for i in range(len(label)):
                 if label[i].isnumeric():
@@ -560,7 +579,10 @@ class Circuit(Gate):
                 inputs[l] = i
         t = time.time()
         self.set_input_values(inputs)
-        self.run()
+        if not has_clock:
+            self.run()
+        else:
+            self.clock_next()
         elapsed = time.time() - t
         for p in input_prefix:
             idx = inputs_dict[p]['idbit']
