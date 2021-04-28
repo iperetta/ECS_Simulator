@@ -21,6 +21,11 @@ def lbs(prefix, length):
         elif prefix == '\@': prefix = '@'
         return list(f"{prefix}{i}" for i in reversed(range(length)))
 
+def dec2bin(decimal, nrbits):
+    aux = list(int(i) for i in bin(decimal)[2:])
+    if len(aux) > nrbits:
+        print(f"Beware, {decimal} cannot be written with {nrbits} bits!")
+    return [0]*(nrbits-len(aux)) + aux if len(aux) <= nrbits else aux[(len(aux)-nrbits):]
 
 class Library:
     dirpath = Path('lib')
@@ -172,6 +177,10 @@ class Transistor(Library):
             self.bridge_CE = True
         else:
             self.bridge_CE = False
+    def change_node(self, old_node, new_node):
+        for k, v in self.ports.items():
+            if v == old_node:
+                self.ports[k] = new_node
     def get_wires(self):
         return list(self.ports[l] for l in ['B', 'C', 'E'])
 
@@ -184,7 +193,8 @@ class Gate(Library):
         if type(output_labels) == str:
             output_labels = [output_labels]
         self.vcc = Wire(1, changeable=False, name='VCC')
-        self.gnd =Wire(0, changeable=False, name='GND')
+        self.gnd = Wire(0, changeable=False, name='GND')
+        self.clock = None
         self.inputs = Bus(len(input_labels))
         self.inputs.set_labels(input_labels)
         self.outputs = Bus(len(output_labels))
@@ -195,18 +205,22 @@ class Gate(Library):
         self.inverted_outputs = dict((self.outputs[l], False) for l in self.outputs.labels) \
             if nrtransistors > 0 else None
         self.visited = None
-        self.clock = None
+        # self.clock = None
     def __getitem__(self, index):
         if type(index) == int or index in self.inputs.labels:
            return self.inputs[index] 
         if type(index) == int or index in self.outputs.labels:
            return self.outputs[index]
+    def has_clock(self):
+        return not self.clock is None
     def get_wires(self):
         wires = [self.vcc, self.gnd]
         wires += list(self.inputs[l] for l in self.inputs.labels)
         wires += list(self.outputs[l] for l in self.outputs.labels)
         for q in self.components:
             wires += q.get_wires()
+        if self.has_clock():
+            wires += [self.clock]
         return wires
     def nrtransistors(self):
         return len(self.components)
@@ -218,8 +232,17 @@ class Gate(Library):
             acopy.connections[wires_dict[k]] = aux
         for k, v in self.inverted_outputs.items():
             acopy.inverted_outputs[wires_dict[k]] = v
-        acopy.clock = None
         return acopy
+    def change_node(self, old_node, new_node):
+        if old_node in self.connections:
+            self.connections[new_node] = self.connections[old_node].copy()
+            del self.connections[old_node]
+            for k, v in self.connections.items():
+                if old_node in v:
+                    self.connections[k].add(new_node)
+                    self.connections[k].remove(old_node)
+            for c in self.components:
+                c.change_node(old_node, new_node)
     def connect_nodes_unidirecional(self, wireFrom, wireTo):
         self.connections[wireFrom].add(wireTo)
     def connect_nodes(self, wireA, wireB):
@@ -305,6 +328,7 @@ class Gate(Library):
     def header(self):
         return f"{self} : I/O {self.inputs.nrbits}⨉{self.outputs.nrbits} [#Q {self.nrtransistors()}]"
     def info(self):
+        print(self.header())
         print('Inputs (in order) :', self.inputs.labels)
         print('Outputs (in order):', self.outputs.labels)
     def _test_header(self, input_labels, output_labels, compact):
@@ -414,13 +438,13 @@ class Circuit(Gate):
         self.circuitry[key] = { 'level': -1, 'same': [], 'children': [] }
     def copy(self):
         acopy = Circuit(self.name, self.inputs.labels, self.outputs.labels)
+        if self.has_clock():
+            acopy.clock = Wire()
         for cp in self.components:
             acopy.add_component(cp)
         wires_dict = dict((ws, wc) for ws, wc in zip(self.get_wires(), acopy.get_wires()))
         for k, v in self.connections.items():
             acopy.connections[wires_dict[k]] = set(wires_dict[w] for w in v)
-        if not self.clock is None:
-            acopy.clock = wires_dict[self.clock]
         comp_dict = dict((cs, cc) for cs, cc in zip(self.components, acopy.components))
         comp_dict.update({self: acopy})
         for k, v in self.circuitry.items():
@@ -428,6 +452,7 @@ class Circuit(Gate):
             acopy.circuitry[comp_dict[k]]['level'] = v['level']
             acopy.circuitry[comp_dict[k]]['same'] = list(comp_dict[c] for c in v['same'])
             acopy.circuitry[comp_dict[k]]['children'] = list(comp_dict[c] for c in v['children'])
+        acopy._replace_clock(acopy.clock)
         return acopy
     def nrtransistors(self):
         return sum(cp.nrtransistors() for cp in self.components)
@@ -513,16 +538,22 @@ class Circuit(Gate):
         wire = self.components[cidx][port]
         wire.set_low()
         wire.changeable = False
+    def _replace_clock(self, new_clock):
+        if self.has_clock():
+            if self.clock != new_clock:
+                self.change_node(self.clock, new_clock)
+                self.clock = new_clock
+            for c in self.components:
+                if c.has_clock():
+                    c._replace_clock(new_clock)
     def set_as_clock(self, cidx, port):
-        wire = self.components[cidx].clock if port == 'clock' else self.components[cidx][port]
-        if not wire in self.connections:
-            self.connections[wire] = set()
-        if self.clock is None:
-            self.clock = wire
+        if not self.has_clock():
+            self.clock = Wire(0, changeable=True, name='CLK')
+            self.connections[self.clock] = set()
+        if port == 'clock':
+            self.components[cidx]._replace_clock(self.clock)
         else:
-            self.connect_nodes(self.clock, wire)
-        if not self.components[cidx].clock is None:
-            self.connect_nodes(self.clock, self.components[cidx].clock)
+            self.connect_nodes(self.clock, self.components[cidx][port])
     def run(self):
         for lbl in self.inputs.labels:
             self.propagate(self.inputs[lbl])
@@ -531,12 +562,23 @@ class Circuit(Gate):
             c.run()
             for lbl in c.outputs.labels:
                 self.propagate(c.outputs[lbl])
+    # def info_clocks(self):
+    #     print(self, self.clock)
+    #     for c in self.components:
+    #         if not c.clock is None:
+    #             c.info_clocks()
+    def _propagate_clock(self):
+        if self.has_clock():
+            self.propagate(self.clock)
+            for c in self.components:
+                if type(c) == Circuit:
+                    c._propagate_clock()
     def clock_next(self):
         self.clock.set_high()
-        self.propagate(self.clock)
+        self._propagate_clock()
         self.run()
         self.clock.set_low()
-        self.propagate(self.clock)
+        self._propagate_clock()
     def test_arithm(self, compact=True, label_display_order=None, msg = '', unsigned=[], has_clock=False, **kwargs):
         def get_prefix(label):
             for i in range(len(label)):
