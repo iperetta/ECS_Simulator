@@ -356,7 +356,7 @@ Simulador para o curso de Elementos de Sistemas Computacionais (*Elements of Com
             Ram64.set_as_output(9, f'out{i}', f'out{i}')
         for i in range(3):
             for j in range(8):
-                Ram64.set_as_input(i, f'addr{i}', f'addr{i}')
+                Ram64.set_as_input(j, f'addr{i}', f'addr{i}') # <-- updated!
             Ram64.set_as_input(8, f'sel{i}', f'addr{i+3}')
             Ram64.set_as_input(9, f'sel{i}', f'addr{i+3}')
         Ram64.save()
